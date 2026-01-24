@@ -34,9 +34,21 @@ huggingface-cli download --resume-download Qwen/Qwen3-0.6B \
 ## Quick Start
 
 See `example.py` for usage. The API mirrors vLLM's interface with minor differences in the `LLM.generate` method:
+
+**Using local model path:**
 ```python
 from wickyvllm import LLM, SamplingParams
 llm = LLM("/YOUR/MODEL/PATH", enforce_eager=True, tensor_parallel_size=1)
+sampling_params = SamplingParams(temperature=0.6, max_tokens=256)
+prompts = ["Hello, Nano-vLLM."]
+outputs = llm.generate(prompts, sampling_params)
+outputs[0]["text"]
+```
+
+**Using Hugging Face model ID (auto-download):**
+```python
+from wickyvllm import LLM, SamplingParams
+llm = LLM("Qwen/Qwen3-0.6B", enforce_eager=True, tensor_parallel_size=1)
 sampling_params = SamplingParams(temperature=0.6, max_tokens=256)
 prompts = ["Hello, Nano-vLLM."]
 outputs = llm.generate(prompts, sampling_params)
