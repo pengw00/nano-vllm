@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nano-vllm"
-version = "0.2.0"
-authors = [{ name = "Xingkai Yu" }]
+name = "wicky-vllm"
+version = "0.1.0"
+authors = [{ name = "David U" }]
 license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
@@ -24,4 +24,4 @@ Homepage="https://github.com/GeeeekExplorer/nano-vllm"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["nanovllm*"]
+include = ["wickyvllm*"]
