@@ -59,6 +59,13 @@ outputs[0]["text"]
 
 See `bench.py` for benchmark.
 
+**Attention Kernel Benchmark:**
+
+To benchmark the Triton attention kernel performance:
+```bash
+python benchmark_attention.py
+```
+
 **Test Configuration:**
 - Hardware: RTX 4070 Laptop (8GB)
 - Model: Qwen3-0.6B
