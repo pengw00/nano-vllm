@@ -6,19 +6,15 @@ import triton.language as tl
 from wickyvllm.utils.context import get_context
 
 # Conditional import
+ATTENTION_BACKEND = None
+
 try:
-    from flash_attn import flash_attn_varlen_func, flash_attn_with_kvcache
-    FLASH_ATTN_AVAILABLE = True
-    # Check GPU capability at import time
-    if torch.cuda.is_available():
-        capability = torch.cuda.get_device_capability()
-        if capability[0] < 8:
-            print(f"Warning: FlashAttention requires Ampere GPU or newer (compute capability >= 8.0), "
-                  f"but found compute capability {capability[0]}.{capability[1]}. "
-                  f"Falling back to standard PyTorch attention.")
-            FLASH_ATTN_AVAILABLE = False
-except (ImportError, RuntimeError):
-    FLASH_ATTN_AVAILABLE = False
+    import flashinfer
+    ATTENTION_BACKEND = "flashinfer"
+    print(f"Using FlashInfer for attention computation")
+except ImportError:
+    ATTENTION_BACKEND = "triton"
+    print(f"Using Triton for attention computation")
 
 
 @triton.jit
@@ -172,25 +168,35 @@ class Attention(nn.Module):
         if k_cache.numel() and v_cache.numel():
             store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)
         
-        if FLASH_ATTN_AVAILABLE:
-            # Use FlashAttention
+        if ATTENTION_BACKEND == "flashinfer":
+            # Use FlashInfer - it handles all the complexity
+            from flashinfer import single_prefill_with_kv_cache, single_decode_with_kv_cache
+            
             if context.is_prefill:
-                if context.block_tables is not None:
-                    k, v = k_cache, v_cache
-                o = flash_attn_varlen_func(q, k, v,
-                                           max_seqlen_q=context.max_seqlen_q, cu_seqlens_q=context.cu_seqlens_q,
-                                           max_seqlen_k=context.max_seqlen_k, cu_seqlens_k=context.cu_seqlens_k,
-                                           softmax_scale=self.scale, causal=True, block_table=context.block_tables)
-            else:
-                o = flash_attn_with_kvcache(q.unsqueeze(1), k_cache, v_cache,
-                                            cache_seqlens=context.context_lens, block_table=context.block_tables, 
-                                            softmax_scale=self.scale, causal=True)
+                k_input = k_cache if context.block_tables is not None else k
+                v_input = v_cache if context.block_tables is not None else v
+                
+                o = single_prefill_with_kv_cache(
+                    q.unsqueeze(0).transpose(1, 2),  # [1, seq, heads, dim]
+                    k_input.unsqueeze(0).transpose(1, 2),
+                    v_input.unsqueeze(0).transpose(1, 2),
+                    causal=True,
+                    sm_scale=self.scale,
+                )
+                o = o.transpose(1, 2).squeeze(0)
+            else:  # decode
+                o = single_decode_with_kv_cache(
+                    q.unsqueeze(1),  # [batch, 1, heads, dim]
+                    k_cache.unsqueeze(0).transpose(1, 2),
+                    v_cache.unsqueeze(0).transpose(1, 2),
+                    sm_scale=self.scale,
+                )
+                o = o.squeeze(1)
         else:
-            # Fallback to Triton attention
+            # Fallback to Triton
             if context.is_prefill:
                 if context.block_tables is not None:
                     k, v = k_cache, v_cache
-                # Process each sequence in the batch
                 batch_size = len(context.cu_seqlens_q) - 1
                 o_list = []
                 for i in range(batch_size):

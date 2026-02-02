@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wicky-vllm"
-version = "0.1.5"
+version = "0.1.6"
 authors = [{ name = "David U" }]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -16,7 +16,7 @@ dependencies = [
     "triton>=3.0.0",
     "transformers>=4.51.0",
     "huggingface_hub",
-    "flash-attn",
+    "flashinfer>=0.2.0",
     "xxhash",
 ]
 
